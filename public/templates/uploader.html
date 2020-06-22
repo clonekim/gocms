@@ -1,0 +1,74 @@
+<div class="easyui-tabs-content">
+
+    <h1>Uploader</h1>
+
+
+    <div id="toolbar-{{.uuid}}" style="padding:3px;margin-bottom:5px;">
+        <form id="form-upload-{{.uuid}}" class="upload-form" action="/api/drive" method="post" enctype="multipart/form-data">
+            <input type="file" name="files[]" multiple><br>
+            <input type="submit" value="Upload">
+        </form>
+
+        <div class="progress">
+            <div class="bar"></div >
+            <div class="percent">0%</div >
+        </div>
+        <div id="status"></div>
+    </div>
+
+
+    <div class="datagrid-content" data-options="fit:true" style="height: 500px;">
+        <table id="grid-{{.uuid}}"></table>
+    </div>
+
+</div>
+
+
+<script>
+    $(function () {
+
+        var bar = $('.bar');
+        var percent = $('.percent');
+        var status = $('#status');
+
+        $('#form-upload-{{.uuid}}').ajaxForm({
+            beforeSubmit: function(arr, $form, options) {
+                if(!arr[0].value) {
+                    alert('파일을 선택하세요');
+                    return false;
+                }
+            },
+            data: {
+
+            },
+            beforeSend: function() {
+                status.empty();
+                var percentVal = '0%';
+                bar.width(percentVal);
+                percent.html(percentVal);
+                $('#grid-{{.uuid}}').datagrid('loading');
+            },
+
+            uploadProgress: function(event, position, total, percentComplete) {
+                var percentVal = percentComplete + '%';
+                bar.width(percentVal)
+                percent.html(percentVal);
+            },
+            success: function() {
+                var percentVal = '100%';
+                bar.width(percentVal)
+                percent.html(percentVal);
+            },
+            complete: function(xhr) {
+                if(xhr.status === 200) {
+                    $('#grid-{{.uuid}}').datagrid('reload').datagrid('loaded');
+                }
+                $('#form-upload-{{.uuid}}')[0].reset();
+            }
+        });
+
+    });
+
+
+
+</script>

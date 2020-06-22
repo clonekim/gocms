@@ -1,0 +1,113 @@
+<div class="easyui-tabs-content">
+
+    <h1>Drive</h1>
+
+    <div class="datagrid-content" data-options="fit:true" style="height: 500px;">
+        <table id="grid-{{.uuid}}"></table>
+    </div>
+
+</div>
+
+
+<script>
+
+    $('#grid-{{.uuid}}').datagrid({
+        fit: true,
+        url: '/api/drive',
+        method: 'get',
+        loadFilter: function (data) {
+            return data.files
+        },
+        nowrap: false,
+        pagination: false,
+        pageSize: 20,
+        pageList: [10, 20, 30, 40, 50, 100],
+        idField: 'id',
+        singleSelect: true,
+        remoteSort: false,
+        columns: [[
+            {field: 'id', title: 'ID', width: 100, halign: 'center', sortable: true},
+            {field: 'name', title: '이름', width: 200, halign: 'center'},
+            {field: 'description', title: '설명', width: 280, halign: 'center'},
+            {
+                field: 'owners',
+                title: '소유자',
+                width: 200,
+                halign: 'center',
+                align: 'left',
+                formatter: function (value) {
+                   if (value && value.length > 0) {
+                       var data = value.find(function(i) { return i.me === true})
+                       return  data && data.displayName
+                   }
+                }
+            },
+            {
+                field: 'createdTime',
+                title: '생성일',
+                width: 130,
+                halign: 'center',
+                formatter: dateLongFormat,
+                sortable: true
+            },
+            {
+                field: 'modifiedTime',
+                title: '최종수정일',
+                width: 130,
+                halign: 'center',
+                formatter: dateLongFormat,
+                sortable: true
+            }
+        ]],
+
+        toolbar: [
+            {
+                text: '새로고침', iconCls: 'icon-reload', handler: function () {
+                    $('#grid-{{.uuid}}').datagrid('reload');
+                }
+            },
+            {
+                text: '폴더', iconCls: 'icon-add', handler: function () {
+                    var folder = prompt("폴더명을 입력하세요")
+                    if(folder) {
+
+                        // var formData = new FormData();
+                        // formData.append('mimeType', 'application/vnd.google-apps.folder')
+                        // formData.append('mimeType', 'application/vnd.google-apps.folder')
+
+                        axios
+                        .post('/api/drive', {
+                            mimeType: 'application/vnd.google-apps.folder',
+                            name: folder
+                        }).then( function (res) {
+                            console.log(res)
+                        })
+                    }
+
+                }
+            },
+            {
+                text: '작성', iconCls: 'icon-add', handler: function () {
+
+                    addTab('/html/uploader.html', '업로더')
+                }
+            },
+            {
+                text: '삭제', iconCls: 'icon-remove', handler: function () {
+                    var row = $('#grid-{{.uuid}}').datagrid('getSelected');
+                    if (row === null) {
+                        alert('삭제할 파일을 선택하세요');
+                        return;
+                    }
+
+                    axios
+                        .delete('/api/drive/' + row.id)
+                        .then(function (res) {
+                            $('#grid-{{.uuid}}').datagrid('clearSelections').datagrid('reload');
+                        });
+                }
+            }
+        ],
+
+    });
+</script>
