@@ -6,7 +6,6 @@ import (
 	"gocms/env"
 	"gocms/server"
 	"io/ioutil"
-	"log"
 	"net/http"
 
 	"github.com/urfave/cli/v2"
@@ -27,12 +26,6 @@ func Setup() *cli.App {
 		Usage:    "google cms implemented by Go.",
 		HideHelp: false,
 		Flags: []cli.Flag{
-
-			&cli.BoolFlag{
-				Name:  "test",
-				Value: false,
-				Usage: "Test mode",
-			},
 
 			&cli.BoolFlag{
 				Name:  "debug",
@@ -58,56 +51,44 @@ func Setup() *cli.App {
 
 			port := c.Int("port")
 			debug := c.Bool("debug")
-			test := c.Bool("test")
-
-			log.Printf("TEST MODE: %v",  func() string {
-				if test {
-					return "Yes"
-				}
-				return "No"
-			}())
 
 			var gocms = env.GoCms{}
 
-			if !test {
-
-				if c.String("credential") == "" {
-					return errors.New("credential file is required")
-				}
-
-				b, err := ioutil.ReadFile(c.String("credential"))
-				if err != nil {
-					return err
-				}
-
-				conf, err := createJWTConfig(b)
-				if err != nil {
-					return err
-				}
-
-				client := conf.Client(globalContext)
-
-				drives, err := createDriveService(client)
-				if err != nil {
-					return err
-				}
-
-				docs, err := createDocumentService(client)
-				if err != nil {
-					return err
-				}
-
-				sheet, err := createSheetService(client)
-				if err != nil {
-					return err
-				}
-
-				gocms.ServiceAccountEmail = &conf.Email
-				gocms.Drives = drives
-				gocms.Spreads = sheet.Spreadsheets
-				gocms.Docs = docs.Documents
-
+			if c.String("credential") == "" {
+				return errors.New("credential file is required")
 			}
+
+			b, err := ioutil.ReadFile(c.String("credential"))
+			if err != nil {
+				return err
+			}
+
+			conf, err := createJWTConfig(b)
+			if err != nil {
+				return err
+			}
+
+			client := conf.Client(globalContext)
+
+			drives, err := createDriveService(client)
+			if err != nil {
+				return err
+			}
+
+			docs, err := createDocumentService(client)
+			if err != nil {
+				return err
+			}
+
+			sheet, err := createSheetService(client)
+			if err != nil {
+				return err
+			}
+
+			gocms.ServiceAccountEmail = &conf.Email
+			gocms.Drives = drives
+			gocms.Spreads = sheet.Spreadsheets
+			gocms.Docs = docs.Documents
 
 			gocms.Port = port
 			gocms.Debug = debug
@@ -122,7 +103,7 @@ func Setup() *cli.App {
 }
 
 func createJWTConfig(data []byte) (*jwt.Config, error) {
-	log.Println("Creating HttpClient")
+	//log.Println("Creating HttpClient")
 
 	//*jwt.Config
 	conf, err := google.JWTConfigFromJSON(data,
@@ -147,16 +128,16 @@ func createJWTConfig(data []byte) (*jwt.Config, error) {
 }
 
 func createDriveService(client *http.Client) (*drive.Service, error) {
-	log.Println("Creating DriveService")
+	//log.Println("Creating DriveService")
 	return drive.NewService(globalContext, option.WithHTTPClient(client))
 }
 
 func createSheetService(client *http.Client) (*sheets.Service, error) {
-	log.Println("Creating SpreadService")
+	//log.Println("Creating SpreadService")
 	return sheets.NewService(globalContext, option.WithHTTPClient(client))
 }
 
 func createDocumentService(client *http.Client) (*docs.Service, error) {
-	log.Println("Creating DocumentService")
+	//log.Println("Creating DocumentService")
 	return docs.NewService(globalContext, option.WithHTTPClient(client))
 }
