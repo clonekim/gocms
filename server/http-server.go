@@ -13,7 +13,6 @@ import (
 	"github.com/GeertJohan/go.rice"
 	"html/template"
 	"io"
-	"log"
 	"net/http"
 	"github.com/satori/go.uuid"
 )
@@ -28,7 +27,7 @@ func (c *CustomValidator) Validate(i interface{}) error {
 	if v.Validate() {
 		return nil
 	} else {
-		fmt.Printf("Errors => %v\n", v.Errors)
+		logrus.Errorf("Errors => %v\n", v.Errors)
 		return v.Errors
 	}
 }
@@ -48,67 +47,49 @@ func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Con
 	}
 
 	return tmplMessage.Execute(w, map[string]interface{}{
-		"Message": "Hello,",
+		"serviceAccountEmail": goCms.ServiceAccountEmail,
 		"uuid":   uuid.NewV4().String(),
 	})
 }
 
 
-func assetHandler() http.Handler {
-	box := rice.MustFindBox("../public")
-	return http.FileServer(box.HTTPBox())
-}
+var goCms *env.GoCms
 
 
-func templateHandler() *rice.Box {
-	box, err := rice.FindBox("../public/templates")
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return box
-}
 
 
 func StartHTTPD(cms *env.GoCms) {
 	fmt.Println("Starting GoCms")
+	goCms = cms
+
 
 	e := echo.New()
 	e.HideBanner = true
-
-	assetHandler := assetHandler()
-
-	logLevel := func() logrus.Level {
-		if cms.Debug {
-			return logrus.DebugLevel
-		}
-		return logrus.InfoLevel
-	}()
+	e.Debug = cms.Debug
+	e.Logger = Logger{ logrus.StandardLogger(),}
 
 
-	logrus.SetLevel(logLevel)
-	logrus.SetFormatter(&logrus.TextFormatter{})
+	e.Use(LoggerHook())
+	e.Use(middleware.RequestID())
+	e.Use(middleware.Recover())
 
 	e.Validator = &CustomValidator{}
 	e.Pre(middleware.RemoveTrailingSlash())
 
-	e.Renderer = &Template{ box:  templateHandler() }
+
 	/*
 	  로그 포맷 참고
 	 https://echo.labstack.com/middleware/logger
 	*/
-	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
-		Format: "${time_rfc3339} ${method} - ${uri} ${status}\n",
-	}))
+	//e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+	//	Format: "${time_rfc3339} ${method} - ${uri} ${status}\n",
+	//}))
 
-	e.GET("/", echo.WrapHandler(assetHandler))
-	e.GET("/*", echo.WrapHandler(http.StripPrefix("/", assetHandler)))
+
 	e.GET("/html/:name", func(c echo.Context) error {
 		return c.Render(200, c.Param("name"), nil)
 	})
 
-	e.Use(middleware.Recover())
 
 	//custom middleware
 	//https://echo.labstack.com/guide/context
@@ -127,11 +108,29 @@ func StartHTTPD(cms *env.GoCms) {
 		}
 	})
 
+	SetupAsset(e)
+	SetupRenderer(e)
 	meta.Init(e)
 	drive.Init(e)
 	doc.Init(e)
 
-
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", cms.Port)))
+}
+
+func SetupAsset(e *echo.Echo) {
+	assetHandler := http.FileServer(rice.MustFindBox("../public").HTTPBox())
+	e.GET("/", echo.WrapHandler(assetHandler))
+	e.GET("/*", echo.WrapHandler(http.StripPrefix("/", assetHandler)))
+
+}
+
+func SetupRenderer(e *echo.Echo) {
+	box, err := rice.FindBox("../public/templates")
+
+	if err != nil {
+		logrus.Debug(err)
+	}
+
+	e.Renderer = &Template{ box:  box }
 }
 
