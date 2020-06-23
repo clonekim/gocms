@@ -3,8 +3,12 @@ package drive
 import (
 	"fmt"
 	"github.com/labstack/echo/v4"
+	"github.com/sirupsen/logrus"
 	"gocms/env"
 	"google.golang.org/api/drive/v3"
+	"io/ioutil"
+	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -14,6 +18,7 @@ func Init(e *echo.Echo) {
 	g.GET("/drives", GetDriveInfo)
 	g.GET("/drive", GetFilesInDrive)
 	g.GET("/drive/:id", GetFileDetails)
+	g.GET("/download/:id", Download)
 	g.POST("/drive", CreateFile)
 	g.DELETE("/drive/:id", DeleteFile)
 
@@ -22,7 +27,7 @@ func Init(e *echo.Echo) {
 func GetDriveInfo(c echo.Context) error {
 	cms := c.(*env.GoCms)
 
-	results, err := cms.Drives.Drives.List().Fields("kind, nextPageToken, drives").Do()
+	results, err := cms.Drives.Files.Get("root").Do()
 
 	if err != nil {
 		return c.JSON(500, err)
@@ -31,6 +36,21 @@ func GetDriveInfo(c echo.Context) error {
 	return c.JSON(200, results)
 }
 
+
+func getPageSize(param string) int64 {
+	if param != "" {
+		i, err := strconv.ParseInt(param, 10, 64)
+		if err != nil {
+			return 20
+		}
+		return i
+	}
+
+	return 20
+}
+
+
+
 /*
   모든 파일 가져오기
   폴더, 파일이든 모드 파일로 취급
@@ -38,10 +58,21 @@ func GetDriveInfo(c echo.Context) error {
 func GetFilesInDrive(c echo.Context) error {
 	cms := c.(*env.GoCms)
 
+
+
 	results, err := cms.Drives.Files.
 		List().
-		SupportsAllDrives(true).
-		Fields("files(id, kind, mimeType, name, description, starred, trashed, parents, owners, webContentLink, webViewLink, iconLink, spaces, thumbnailLink, createdTime, modifiedTime, sharingUser, size, capabilities)").
+		//DriveId("root").
+		//SupportsAllDrives(true).
+		//IncludeItemsFromAllDrives(true).
+		Corpora("user").
+	//	Fields("files(id, kind, mimeType, name, description, starred, trashed, parents, owners, webContentLink, webViewLink, iconLink, spaces, thumbnailLink, createdTime, modifiedTime, sharingUser, size, capabilities),  nextPageToken").
+		Fields("files(id, kind, mimeType, name, description, starred, trashed, parents, owners,  webViewLink, iconLink, spaces, createdTime, modifiedTime, sharingUser, size), nextPageToken").
+		PageSize(getPageSize(c.QueryParam("pageSize"))).
+		Q(c.QueryParam("q")).
+
+		OrderBy(c.QueryParam("orderby")).
+		PageToken( c.QueryParam("pageToken")).
 		Do()
 
 	if err != nil {
@@ -58,7 +89,7 @@ func GetFileDetails(c echo.Context) error {
 	result, err := cms.Drives.Files.
 		Get(id).
 		SupportsAllDrives(true).
-		Fields("id, kind, mimeType").
+		Fields("id, kind, mimeType, name, description, starred, trashed, owners, webViewLink, iconLink, spaces, createdTime, modifiedTime, sharingUser, size, capabilities").
 		Do()
 
 	if err != nil {
@@ -74,6 +105,8 @@ type FileRequest struct {
 	Parents  []string `json:"parents,omitempty"`
 	Email    string   `json:"email,omitempty" validate:"email"`
 }
+
+
 
 func CreateFile(c echo.Context) (err error) {
 
@@ -128,7 +161,7 @@ func CreateFile(c echo.Context) (err error) {
 
 	if form != nil {
 
-		file := form.File["files"][0:1][0]
+		file := form.File["file"][0:1][0]
 
 		src, err := file.Open()
 
@@ -157,7 +190,7 @@ func CreateFile(c echo.Context) (err error) {
 		_, err := NewPermission(cms, apiResult.Id, fileRequest.Email, "owner")
 		if err != nil {
 			cms.Drives.Files.Delete(apiResult.Id)
-			cms.Logger().Debugf("giving a new permission - %s was failed", fileRequest.Email)
+			logrus.Errorf("giving a new permission - %s was failed", fileRequest.Email)
 			return c.JSON(500, err)
 		}
 	}
@@ -165,6 +198,8 @@ func CreateFile(c echo.Context) (err error) {
 	return c.JSON(200, apiResult)
 
 }
+
+
 
 func NewPermission(cms *env.GoCms, fileId string, email string, role string) (*drive.Permission, error) {
 	result, err := cms.Drives.Permissions.Create(fileId, &drive.Permission{
@@ -198,4 +233,65 @@ func DeleteFile(c echo.Context) error {
 	} else {
 		return c.NoContent(200)
 	}
+}
+
+
+func Download( c echo.Context) error {
+	id := c.Param("id")
+	mimetype := "application/octet-stream"
+	//mimetype := c.QueryParam("mimeType")
+	cms := c.(*env.GoCms)
+
+	//if mimetype == "" {
+	//	logrus.Debug("mimeType is empty")
+		file, _ := cms.Drives.Files.Get(id).Do()
+		mimetype =  file.MimeType
+	//	logrus.Debugf("reset mimeType -> %s\n", mimetype)
+	//}
+	//
+	//if mimetype == "" {
+	//	mimetype = "application/octet-stream"
+	//}
+
+	var res *http.Response
+	var err error
+
+	//if mimetype == "application/octet-stream" {
+		res, err = cms.Drives.Files.Get(id).Download()
+	//} else {
+	//	res, err = cms.Drives.Files.Export(id, mimetype).Download()
+	//}
+
+	if err != nil {
+		logrus.Error(err)
+		return c.JSON(500, err)
+	}
+
+	contents, err := ioutil.ReadAll(res.Body)
+
+	if err != nil {
+		logrus.Error(err)
+		return  c.JSON(500, err)
+	}
+
+	defer res.Body.Close()
+
+	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", "attachment",  file.Name))
+	return c.Blob(200, mimetype , contents)
+
+}
+
+
+func DeletePermission(cms *env.GoCms, fileId string, permId string) {
+
+	cms.Drives.Permissions.Delete(fileId, permId).Do()
+}
+
+func updatePermission(cms *env.GoCms, fileId string, permId string) {
+	cms.Drives.Permissions.Update(fileId, permId, &drive.Permission{
+		Role: "",
+		EmailAddress: "",
+		DisplayName: "",
+
+	})
 }

@@ -10,8 +10,9 @@ import (
 
 func Init( e *echo.Echo) {
 	g := e.Group("/api")
-	g.POST("/docs", CreateDocument)
-	g.POST("/docs/:id", BatchUpdateDocument)
+	g.POST("/doc", CreateDocument)
+	g.GET("/doc/:id", GetDocument)
+	g.PUT("/doc/:id", BatchUpdateDocument)
 }
 
 
@@ -37,6 +38,20 @@ func CreateDocument(c echo.Context) error {
 	}
 
 	return c.JSON(200, result)
+}
+
+
+func GetDocument ( c echo.Context) error {
+	cms := c.(*env.GoCms)
+	docId := c.Param("id")
+
+	res, err := cms.Docs.Get(docId).Do()
+
+	if err != nil {
+		return c.JSON(500, err)
+	}
+
+	return c.JSON(200, res)
 }
 
 

@@ -27,11 +27,11 @@ func Setup() *cli.App {
 		HideHelp: false,
 		Flags: []cli.Flag{
 
-			&cli.BoolFlag{
+		/*	&cli.BoolFlag{
 				Name:  "debug",
 				Value: false,
 				Usage: "debug option",
-			},
+			},*/
 
 			&cli.IntFlag{
 				Name:  "port",
@@ -50,7 +50,7 @@ func Setup() *cli.App {
 			c.App.Setup()
 
 			port := c.Int("port")
-			debug := c.Bool("debug")
+		//	debug := c.Bool("debug")
 
 			var gocms = env.GoCms{}
 
@@ -91,7 +91,7 @@ func Setup() *cli.App {
 			gocms.Docs = docs.Documents
 
 			gocms.Port = port
-			gocms.Debug = debug
+			//gocms.Debug = debug
 
 			server.StartHTTPD(&gocms)
 

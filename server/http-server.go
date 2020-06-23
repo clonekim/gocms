@@ -5,6 +5,7 @@ import (
 	"github.com/gookit/validate"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/gommon/log"
 	"github.com/sirupsen/logrus"
 	"gocms/api/doc"
 	"gocms/api/drive"
@@ -57,7 +58,6 @@ var goCms *env.GoCms
 
 
 
-
 func StartHTTPD(cms *env.GoCms) {
 	fmt.Println("Starting GoCms")
 	goCms = cms
@@ -65,9 +65,12 @@ func StartHTTPD(cms *env.GoCms) {
 
 	e := echo.New()
 	e.HideBanner = true
-	e.Debug = cms.Debug
 	e.Logger = Logger{ logrus.StandardLogger(),}
 
+	//if cms.Debug {
+	e.Debug = true
+	e.Logger.SetLevel(log.DEBUG)
+	//}
 
 	e.Use(LoggerHook())
 	e.Use(middleware.RequestID())
@@ -102,7 +105,7 @@ func StartHTTPD(cms *env.GoCms) {
 			cmsCtx.Spreads = cms.Spreads
 			cmsCtx.Drives = cms.Drives
 			cmsCtx.Docs = cms.Docs
-			cmsCtx.Debug = cms.Debug
+			//cmsCtx.Debug = cms.Debug
 
 			return next(cmsCtx)
 		}
